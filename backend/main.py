@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -25,14 +26,15 @@ def health():
 def search(q: str, max_results: int = 10):
     # Step 1: search for videos
     search_url = "https://www.googleapis.com/youtube/v3/search"
-    search_params = {
-        "part": "snippet",
-        "q": q,
-        "type": "video",
-        "maxResults": max_results,
-        "order": "viewCount",
-        "key": API_KEY
-    }
+search_params = {
+    "part": "snippet",
+    "q": q,
+    "type": "video",
+    "maxResults": max_results,
+    "order": "relevance",
+    "publishedAfter": (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "key": API_KEY
+}
     search_response = requests.get(search_url, params=search_params).json()
 
     # Extract video IDs from results
