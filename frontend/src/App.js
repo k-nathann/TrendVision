@@ -36,7 +36,7 @@ export default function App() {
     setSearched(true);
     setVisibleCount(10);
     try {
-      const res = await axios.get(`http://localhost:8000/search?q=${query}&max_results=30`);
+      const res = await axios.get(`https://trendvision.onrender.com/search?q=${query}&max_results=30`);
       setResults(res.data.results);
     } catch (err) {
       console.error(err);
