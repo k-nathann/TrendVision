@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from dotenv import load_dotenv
+import anthropic
 import requests
+import json
 import os
 
 load_dotenv()
@@ -16,11 +19,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_KEY = os.getenv("YOUTUBE_API_KEY")
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "api_key_loaded": bool(API_KEY)}
+    return {"status": "ok", "api_key_loaded": bool(YOUTUBE_API_KEY)}
 
 @app.get("/search")
 def search(q: str, max_results: int = 10):
@@ -33,7 +37,7 @@ def search(q: str, max_results: int = 10):
         "maxResults": max_results,
         "order": "relevance",
         "publishedAfter": (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "key": API_KEY
+        "key": YOUTUBE_API_KEY
     }
     search_response = requests.get(search_url, params=search_params).json()
 
@@ -45,12 +49,12 @@ def search(q: str, max_results: int = 10):
     if not video_ids:
         return {"results": []}
 
-    # Step 2: get video stats
+    # Step 2: get video stats + full snippet (includes description)
     stats_url = "https://www.googleapis.com/youtube/v3/videos"
     stats_params = {
         "part": "statistics,snippet",
         "id": ",".join(video_ids),
-        "key": API_KEY
+        "key": YOUTUBE_API_KEY
     }
     stats_response = requests.get(stats_url, params=stats_params).json()
 
@@ -68,7 +72,7 @@ def search(q: str, max_results: int = 10):
         channels_params = {
             "part": "statistics",
             "id": ",".join(channel_ids),
-            "key": API_KEY
+            "key": YOUTUBE_API_KEY
         }
         channels_response = requests.get(channels_url, params=channels_params).json()
         for ch in channels_response.get("items", []):
@@ -91,6 +95,7 @@ def search(q: str, max_results: int = 10):
         results.append({
             "video_id": item["id"],
             "title": snippet.get("title"),
+            "description": snippet.get("description", ""),
             "channel": snippet.get("channelTitle"),
             "channel_id": channel_id,
             "published_at": snippet.get("publishedAt"),
@@ -104,3 +109,43 @@ def search(q: str, max_results: int = 10):
 
     results.sort(key=lambda x: x["views"], reverse=True)
     return {"query": q, "results": results}
+
+
+class VideoItem(BaseModel):
+    title: str
+    description: str = ""
+
+class AnalyzeRequest(BaseModel):
+    query: str
+    videos: list[VideoItem]
+
+@app.post("/analyze")
+def analyze(req: AnalyzeRequest):
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    video_list = "\n".join([
+        f"{i+1}. \"{v.title}\"\n   {v.description[:250] if v.description else 'No description available'}"
+        for i, v in enumerate(req.videos[:10])
+    ])
+
+    prompt = f"""You are a YouTube content strategist. A creator wants to make a video about "{req.query}".
+
+Here are the top performing videos on this topic right now:
+
+{video_list}
+
+Analyze these videos and respond ONLY with valid JSON in this exact format, no extra text:
+{{
+  "saturated": "One sentence describing what angle or topic most of these videos share",
+  "gap": "One sentence describing a specific subtopic or angle that none of these videos cover",
+  "suggested_title": "A concrete, clickable YouTube title that fills that gap"
+}}"""
+
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=300,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    text = message.content[0].text.strip()
+    return json.loads(text)

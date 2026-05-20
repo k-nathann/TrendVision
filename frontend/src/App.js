@@ -29,15 +29,39 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [gapAnalysis, setGapAnalysis] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const BASE_URL = "https://trendvision.onrender.com";
 
   const search = async () => {
     if (!query.trim()) return;
     setLoading(true);
     setSearched(true);
     setVisibleCount(10);
+    setGapAnalysis(null);
     try {
-      const res = await axios.get(`https://trendvision.onrender.com/search?q=${query}&max_results=30`);
-      setResults(res.data.results);
+      const res = await axios.get(`${BASE_URL}/search?q=${query}&max_results=30`);
+      const videos = res.data.results;
+      setResults(videos);
+
+      // Kick off gap analysis with the top 10 results
+      if (videos.length > 0) {
+        setAnalyzing(true);
+        try {
+          const analyzeRes = await axios.post(`${BASE_URL}/analyze`, {
+            query,
+            videos: videos.slice(0, 10).map(v => ({
+              title: v.title,
+              description: v.description || "",
+            })),
+          });
+          setGapAnalysis(analyzeRes.data);
+        } catch (err) {
+          console.error("Gap analysis failed:", err);
+        }
+        setAnalyzing(false);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -334,6 +358,77 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            {/* Content Gap Analysis */}
+            {(analyzing || gapAnalysis) && (
+              <div style={{
+                background: S.surface,
+                border: `1px solid ${S.border}`,
+                borderRadius: "16px", padding: "28px", marginBottom: "40px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.06)"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+                  <span style={{ fontSize: "24px" }}>🔍</span>
+                  <h2 style={{ margin: 0, fontSize: "18px", color: S.text }}>
+                    Content Gap Analysis
+                  </h2>
+                  <span style={{
+                    background: "#f0eaf7",
+                    border: "1px solid #c4a8d8",
+                    color: "#7a5a99",
+                    fontSize: "11px", padding: "3px 10px",
+                    borderRadius: "12px", fontWeight: "bold"
+                  }}>
+                    AI-powered
+                  </span>
+                </div>
+
+                {analyzing && (
+                  <div style={{ color: S.muted, fontSize: "14px", fontStyle: "italic" }}>
+                    Analysing top videos for content gaps...
+                  </div>
+                )}
+
+                {gapAnalysis && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div style={{
+                      background: S.surface2,
+                      border: `1px solid ${S.border}`,
+                      borderRadius: "10px", padding: "16px"
+                    }}>
+                      <div style={{ fontSize: "11px", color: S.muted, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "6px" }}>
+                        What's already saturated
+                      </div>
+                      <div style={{ fontSize: "14px", color: S.text }}>{gapAnalysis.saturated}</div>
+                    </div>
+
+                    <div style={{
+                      background: "#eef5f0",
+                      border: `1px solid ${S.sage}`,
+                      borderRadius: "10px", padding: "16px"
+                    }}>
+                      <div style={{ fontSize: "11px", color: S.sage, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "6px" }}>
+                        The gap nobody is filling
+                      </div>
+                      <div style={{ fontSize: "14px", color: S.text }}>{gapAnalysis.gap}</div>
+                    </div>
+
+                    <div style={{
+                      background: "#fdf0ea",
+                      border: `1px solid ${S.rust}`,
+                      borderRadius: "10px", padding: "16px"
+                    }}>
+                      <div style={{ fontSize: "11px", color: S.rust, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "6px" }}>
+                        Your video title
+                      </div>
+                      <div style={{ fontSize: "16px", fontWeight: "bold", color: S.text }}>
+                        "{gapAnalysis.suggested_title}"
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Video Recommendation Box */}
             {recommendation && (
