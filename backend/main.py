@@ -250,3 +250,55 @@ Respond ONLY with a valid JSON array of exactly 3 objects. No extra text. Use th
         if text.startswith("json"):
             text = text[4:]
     return json.loads(text.strip())
+
+
+class ChatStats(BaseModel):
+    total_videos: int = 0
+    avg_views: int = 0
+    top_views: int = 0
+    best_engagement: float = 0
+    small_channel_wins: int = 0
+    top_keywords: list[str] = []
+    best_day: str = ""
+    best_time: str = ""
+    top_videos: list[dict] = []
+
+
+class ChatRequest(BaseModel):
+    question: str
+    query: str
+    stats: ChatStats
+
+
+@app.post("/chat")
+def chat(req: ChatRequest):
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    s = req.stats
+    top_vids = "\n".join([
+        f"  - \"{v.get('title', '')}\" | {v.get('views', 0):,} views | {v.get('channel', '')}"
+        for v in s.top_videos[:5]
+    ])
+
+    context = f"""You are Big KOK, a sharp YouTube analytics strategist built into TrendVision. You have real-time data for the topic "{req.query}":
+
+- Videos analyzed: {s.total_videos}
+- Average views: {s.avg_views:,}
+- Top video views: {s.top_views:,}
+- Best engagement rate: {s.best_engagement}%
+- Small channel wins (under 100K subs, strong views): {s.small_channel_wins}
+- Top keywords in titles: {', '.join(s.top_keywords) if s.top_keywords else 'none'}
+- Best posting day: {s.best_day or 'unknown'}
+- Best posting time: {s.best_time or 'unknown'}
+- Top videos:
+{top_vids}
+
+Answer the user's question directly and concisely. Be data-driven and specific. Keep answers under 120 words."""
+
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=300,
+        messages=[{"role": "user", "content": f"{context}\n\nQuestion: {req.question}"}]
+    )
+
+    return {"answer": message.content[0].text.strip()}

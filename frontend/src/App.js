@@ -126,6 +126,10 @@ export default function App() {
   const [ideateError, setIdeateError] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [copiedId, setCopiedId]       = useState(null);
+  const [chatOpen, setChatOpen]       = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput]     = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
 
   const loadingMessages = [
     "Synthesising market data...",
@@ -219,6 +223,35 @@ export default function App() {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const sendChat = async () => {
+    const q = chatInput.trim();
+    if (!q || chatLoading) return;
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", text: q }]);
+    setChatLoading(true);
+    try {
+      const res = await axios.post(`${BASE_URL}/chat`, {
+        question: q,
+        query,
+        stats: {
+          total_videos:      results.length,
+          avg_views:         avgViews,
+          top_views:         topVideo?.views || 0,
+          best_engagement:   bestEngagement,
+          small_channel_wins: smallChannelWinCount,
+          top_keywords:      topKeywords.map(k => k.word),
+          best_day:          postingData?.topDay?.[0] || "",
+          best_time:         postingData?.topTime?.[0] || "",
+          top_videos:        results.slice(0, 5).map(v => ({ title: v.title, views: v.views, channel: v.channel })),
+        },
+      });
+      setChatMessages(prev => [...prev, { role: "bot", text: res.data.answer }]);
+    } catch {
+      setChatMessages(prev => [...prev, { role: "bot", text: "Something went wrong. Try again." }]);
+    }
+    setChatLoading(false);
   };
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -1168,6 +1201,141 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* ── Big KOK Chatbot ─────────────────────────────────────────────────── */}
+      {results.length > 0 && (
+        <div style={{ position: "fixed", bottom: "28px", right: "28px", zIndex: 1000 }}>
+          {chatOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                width: "340px", height: "460px",
+                background: S.surface,
+                border: `1px solid ${S.border}`,
+                borderRadius: "16px",
+                boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
+                display: "flex", flexDirection: "column",
+                marginBottom: "12px", overflow: "hidden",
+              }}
+            >
+              {/* Header */}
+              <div style={{
+                padding: "14px 16px",
+                borderBottom: `1px solid ${S.border}`,
+                display: "flex", alignItems: "center", gap: "10px",
+                background: S.surface2,
+              }}>
+                <div style={{
+                  width: "34px", height: "34px", borderRadius: "50%",
+                  background: "linear-gradient(135deg, #00FFC2, #3B7BFF)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "16px", fontWeight: "bold", color: "#0D1117",
+                }}>K</div>
+                <div>
+                  <div style={{ fontWeight: "bold", fontSize: "14px", color: S.text }}>Big KOK</div>
+                  <div style={{ fontSize: "11px", color: S.sage }}>● Live — ask me about these stats</div>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div style={{
+                flex: 1, overflowY: "auto", padding: "14px",
+                display: "flex", flexDirection: "column", gap: "10px",
+              }}>
+                {chatMessages.length === 0 && (
+                  <div style={{ color: S.muted, fontSize: "13px", textAlign: "center", marginTop: "20px" }}>
+                    Ask me anything about the <strong style={{ color: S.rust }}>"{query}"</strong> data — best posting time, top keywords, which video to study, and more.
+                  </div>
+                )}
+                {chatMessages.map((msg, i) => (
+                  <div key={i} style={{
+                    alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                    maxWidth: "85%",
+                    background: msg.role === "user"
+                      ? "rgba(0,255,194,0.12)"
+                      : S.surface2,
+                    border: `1px solid ${msg.role === "user" ? "rgba(0,255,194,0.25)" : S.border}`,
+                    borderRadius: msg.role === "user" ? "12px 12px 4px 12px" : "12px 12px 12px 4px",
+                    padding: "10px 13px",
+                    fontSize: "13px",
+                    color: S.text,
+                    lineHeight: "1.6",
+                  }}>
+                    {msg.text}
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div style={{
+                    alignSelf: "flex-start",
+                    background: S.surface2, border: `1px solid ${S.border}`,
+                    borderRadius: "12px 12px 12px 4px", padding: "10px 13px",
+                  }}>
+                    <motion.span
+                      animate={{ opacity: [0.4, 1, 0.4] }}
+                      transition={{ duration: 1.2, repeat: Infinity }}
+                      style={{ color: S.muted, fontSize: "13px" }}
+                    >
+                      Thinking...
+                    </motion.span>
+                  </div>
+                )}
+              </div>
+
+              {/* Input */}
+              <div style={{
+                padding: "12px",
+                borderTop: `1px solid ${S.border}`,
+                display: "flex", gap: "8px",
+              }}>
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && sendChat()}
+                  placeholder="Ask about the stats..."
+                  style={{
+                    flex: 1, padding: "9px 12px", borderRadius: "8px",
+                    border: `1px solid ${S.border}`,
+                    background: S.surface2, color: S.text,
+                    fontSize: "13px", outline: "none", fontFamily: "inherit",
+                  }}
+                />
+                <motion.button
+                  onClick={sendChat}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  style={{
+                    padding: "9px 14px", borderRadius: "8px", border: "none",
+                    background: S.rust, color: "#0D1117",
+                    fontSize: "13px", fontWeight: "bold", cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  →
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Toggle button */}
+          <motion.button
+            onClick={() => setChatOpen(o => !o)}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.94 }}
+            style={{
+              width: "56px", height: "56px", borderRadius: "50%", border: "none",
+              background: "linear-gradient(135deg, #00FFC2, #3B7BFF)",
+              color: "#0D1117", fontSize: "22px", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 20px rgba(0,255,194,0.4)",
+              fontWeight: "bold",
+            }}
+          >
+            {chatOpen ? "✕" : "💬"}
+          </motion.button>
+        </div>
+      )}
     </div>
   );
 }
