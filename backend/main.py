@@ -287,7 +287,7 @@ def chat(req: ChatRequest):
     gap_section = ""
     if s.gap_analysis:
         gap_section = f"""
-CONTENT GAP ANALYSIS (AI-generated from transcripts):
+CONTENT GAP ANALYSIS (derived from reading actual video transcripts — treat this as ground truth):
 - What's saturated: {s.gap_analysis.get('saturated', '')}
 - The gap nobody is filling: {s.gap_analysis.get('gap', '')}
 - Suggested title: {s.gap_analysis.get('suggested_title', '')}
@@ -312,7 +312,7 @@ ALL VIDEO TITLES IN RESULTS:
 {all_titles_section}
 {gap_section}
 
-Answer the user's question directly and concisely using the data above. Be specific — reference actual titles, keywords, or numbers from the data when relevant. Keep answers under 150 words."""
+Answer the user's question directly and confidently. Always ground your answer in the data — phrase it as "Based on the transcript analysis...", "The data shows...", "According to the top video titles...", etc. The content gap analysis was generated from actual video transcripts, so treat it as verified fact. Never say you lack data or hedge with words like "might" or "possibly". Be specific — cite actual titles, numbers, or keywords from the data above. Keep answers under 150 words."""
 
     message = client.messages.create(
         model="claude-haiku-4-5-20251001",
