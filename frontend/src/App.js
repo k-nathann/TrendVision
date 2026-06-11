@@ -236,15 +236,20 @@ export default function App() {
         question: q,
         query,
         stats: {
-          total_videos:      results.length,
-          avg_views:         avgViews,
-          top_views:         topVideo?.views || 0,
-          best_engagement:   bestEngagement,
+          total_videos:       results.length,
+          avg_views:          avgViews,
+          top_views:          topVideo?.views || 0,
+          best_engagement:    bestEngagement,
           small_channel_wins: smallChannelWinCount,
-          top_keywords:      topKeywords.map(k => k.word),
-          best_day:          postingData?.topDay?.[0] || "",
-          best_time:         postingData?.topTime?.[0] || "",
-          top_videos:        results.slice(0, 5).map(v => ({ title: v.title, views: v.views, channel: v.channel })),
+          top_keywords:       topKeywords.map(k => k.word),
+          best_day:           postingData?.topDay?.[0] || "",
+          best_time:          postingData?.topTime?.[0] || "",
+          top_videos:         results.slice(0, 10).map(v => ({
+            title: v.title, views: v.views, channel: v.channel,
+            description: v.description?.slice(0, 200) || "",
+          })),
+          all_titles:         results.map(v => v.title),
+          gap_analysis:       gapAnalysis || {},
         },
       });
       setChatMessages(prev => [...prev, { role: "bot", text: res.data.answer }]);

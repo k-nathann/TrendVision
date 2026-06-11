@@ -262,6 +262,8 @@ class ChatStats(BaseModel):
     best_day: str = ""
     best_time: str = ""
     top_videos: list[dict] = []
+    all_titles: list[str] = []
+    gap_analysis: dict = {}
 
 
 class ChatRequest(BaseModel):
@@ -280,8 +282,20 @@ def chat(req: ChatRequest):
         for v in s.top_videos[:5]
     ])
 
+    all_titles_section = "\n".join([f"  - {t}" for t in s.all_titles]) if s.all_titles else "none"
+
+    gap_section = ""
+    if s.gap_analysis:
+        gap_section = f"""
+CONTENT GAP ANALYSIS (AI-generated from transcripts):
+- What's saturated: {s.gap_analysis.get('saturated', '')}
+- The gap nobody is filling: {s.gap_analysis.get('gap', '')}
+- Suggested title: {s.gap_analysis.get('suggested_title', '')}
+- Reasoning: {s.gap_analysis.get('reasoning', '')}"""
+
     context = f"""You are Big KOK, a sharp YouTube analytics strategist built into TrendVision. You have real-time data for the topic "{req.query}":
 
+STATS:
 - Videos analyzed: {s.total_videos}
 - Average views: {s.avg_views:,}
 - Top video views: {s.top_views:,}
@@ -290,10 +304,15 @@ def chat(req: ChatRequest):
 - Top keywords in titles: {', '.join(s.top_keywords) if s.top_keywords else 'none'}
 - Best posting day: {s.best_day or 'unknown'}
 - Best posting time: {s.best_time or 'unknown'}
-- Top videos:
+
+TOP VIDEOS (with descriptions):
 {top_vids}
 
-Answer the user's question directly and concisely. Be data-driven and specific. Keep answers under 120 words."""
+ALL VIDEO TITLES IN RESULTS:
+{all_titles_section}
+{gap_section}
+
+Answer the user's question directly and concisely using the data above. Be specific — reference actual titles, keywords, or numbers from the data when relevant. Keep answers under 150 words."""
 
     message = client.messages.create(
         model="claude-haiku-4-5-20251001",
